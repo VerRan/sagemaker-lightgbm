@@ -65,7 +65,8 @@ if __name__ == "__main__":
     X_test_data = pd.read_csv('/opt/ml/input/data/x_test/CR_test_x.csv')
     Y_test_data = pd.read_csv('/opt/ml/input/data/y_test/CR_test_y.csv')
  
-    cf = ['pkg_name','pkg_size','category','sub_category','country','platform','device_brand_name']
+    cf = ['pkg_name','pkg_size','category','sub_category','country','platform','device_brand_name','lang','osv']
+#   cf = [0,1,2,3,4,5,6,7,8]
 ## 预处理训练数据，针对离散数据转换为category类型
     obj_feat = list(X_data.loc[:, X_data.dtypes == 'object'].columns.values)
     for feature in obj_feat:
