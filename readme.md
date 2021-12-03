@@ -1,4 +1,4 @@
-# LightGBM 算法框架运行在Amazon Sagemaker POC
+# LightGBM 算法框架运行在Amazon Sagemaker
 
 ## 背景
 
@@ -58,7 +58,7 @@ pip install lightgbm
 ## 本地训练
 
 下面是本地的训练代码，lightgbm框架可以直接支持直接使用category特征直接作为输入，这样就不需要针对离散特征进行one-hot编码了，使用上更加便利，需要注意的是针对category特征需要在训练阶段需要通过categorical_feature指定对应的列。针对超惨输设置部分此次实验使用的是二分类算法来解决
-``
+```
 from sklearn.metrics import accuracy_score
 import joblib
 import pandas as pd
@@ -105,10 +105,11 @@ joblib.dump(bst, 'classifier.pkl')
     num_round = 10
     bst = lgb.train(param, train_data, num_round, valid_sets=[test_data],categorical_feature=cf)
 
-``
+```
+
 
 下来我们运行一下如上代码通过命令行执行 python train.py
-``
+```
 bash-4.2$ python train.py 
 [LightGBM] [Info] Number of positive: 3, number of negative: 2376
 [LightGBM] [Warning] Auto-choosing row-wise multi-threading, the overhead of testing was 0.000277 seconds.
@@ -135,7 +136,7 @@ And if memory is not enough, you can set `force_col_wise=true`.
 [8]     valid_0's auc: 1
 [9]     valid_0's auc: 1
 [10]    valid_0's auc: 1
-``
+```
 
 训练完成后会将模型保存为.pkl文件，该文件存储了训练好的模型数据信息（
 PKL 文件是由 pickle 创建的文件，pickle 是一个 Python 模块，可以将对象序列化为磁盘上的文件，并在运行时反序列化回程序。它包含一个表示对象的字节流）。
@@ -145,7 +146,7 @@ PKL 文件是由 pickle 创建的文件，pickle 是一个 Python 模块，可�
 针对该实验推理的过程就是使用业务数作为输入，通过模型进行计算和预测输出可能的标签值概率。
 推理代码如下：
 
-``
+```
 import joblib
 import pandas as pd
 import lightgbm as lgb
@@ -174,7 +175,8 @@ ash-4.2$ python predict.py
 0.00046389 0.00046389 0.00046388 0.0017976 0.00059873 0.00059872
 0.00042908 0.00043004 0.00046388 0.00046385 0.00046388 0.00046388
 0.00046388 0.00046389 0.00046389 0.00046388 0.00046389 0.0232526]
-``
+```
+
 当前本地测试lightgbm成功，下来我们看一下如何将训练和推理的过程集成到Sagemaker并利用Sagemaker 来提高训练和推理效率。
 
 ## 如何在Sagemaker上运行Lightgbm
@@ -187,7 +189,7 @@ Sagemaker除了可以通过内置算法来使用之外，也可以使用自定�
 
 1. 使用ECR仓库提示的命令进行镜像构建和上传（https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-console.html） (https://docs.aws.amazon.com/AmazonECR/latest/userguide/getting-started-console.html%EF%BC%89)
 2. 运行步骤1中ECR提示命令构建镜像
-
+```
 docker file 内容如下：
 
 FROM 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-scikit-learn:0.23-1-cpu-py3
@@ -195,6 +197,7 @@ FROM 246618743249.dkr.ecr.us-west-2.amazonaws.com/sagemaker-scikit-learn:0.23-1-
 COPY requirements.txt /requirements.txt
 RUN pip install --no-cache -r /requirements.txt && \
     rm /requirements.txt
+ ```
 
 ### 训练
 
@@ -204,7 +207,7 @@ RUN pip install --no-cache -r /requirements.txt && \
 2. entry_point 指定训练代码的位置，训练代码同本地训练代码，需要注意的是增加超参数的传递
 3. output_path 替换为模型输出位置
 4. 注意data_channels 数据替换为自己桶存储数据的位置
-
+```
 hyperparameters = {
     "tree_num_leaves": 31,
     "num_round": 5
@@ -229,11 +232,11 @@ data_channels = {
     'y_test': 's3://sagemaker-us-west-2-517141035927/dataset/CR_test_y.csv'
                 }
 _estimator.fit(data_channels)
-
+```
 ### 训练代码调整
 
 针对上文提到的训练代码超参数设置部分主要是针对模型存储路径和lightgbm的超参数设置需要通过sagemaker的超惨输设置来传递，这个步骤是可选的也可以将相关参数在训练代码中设置为了代码的配置解耦以及后续的超参数优化更好的利用sagemaker可以将参数进行提取。修改后的代码如下：
-
+```
 import os
 import sys
 
@@ -307,14 +310,14 @@ if __name__ == "__main__":
     num_round = args.num_round
     gbm = lgb.train(param, train_data, num_round, valid_sets=[test_data],categorical_feature=cf)
     joblib.dump(gbm, args.model_dir + "/classifier.pkl")
-
+```
 从代码可以看到读区训练和测试数据的路径是从/opt/ml/input/data/读取的，这个是sagemaker启动训练后开启的训练机器的默认训练数据存储路径sagemaker会自动将存储在S3的数据下载到该目录用于训练，只需要将这里的文件名称修改为自己的训练数据名称可，如果是批量数据可以指定文件目录，关于不同训练数据输入模式的详细说明参见：https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-training-algo-running-container.html
 
 ### 批量推理
 
 针对此次实验场景推理部分采用批量推理，Sagemaker提供了简单易用，功能强大的批量推理能力，只需要通过Sagemaker Python SDK启动批量推理任务就可以了，同时针对推理的输入的处理，输出的处理还提供了挂钩函数用于定制，此外批量推理函数还提供了输入和输出的过滤功能，比如当您需要将推理结果与输入数据关联时只需要在该方法配置output_filter就可以了。下面针对批量推理代码和过程进行详细说明：
 首先需要根据训练好的模型数据，构建批量推理所需模型该模型包含了训练好的模型数据，推理的挂钩函数等，这里我们使用与训练阶段相同的Sklearn版本进行构建。
-
+```
 import sagemaker
 from sagemaker.sklearn import SKLearnModel
 model_data = "s3://sagemaker-us-west-2-517141035927/output/lightgbm-model-training-2021-10-27-12-17-13-171/output/model.tar.gz"
@@ -326,7 +329,7 @@ _model = SKLearnModel(
     framework_version = '0.20.0',
     py_version='py3'
 )
-
+```
 关于SklearnMode类的详细使用方法参见 https://sagemaker.readthedocs.io/en/stable/frameworks/sklearn/sagemaker.sklearn.html
 
 推理挂钩函数包含四个方法
@@ -334,7 +337,7 @@ model_fn：用于模型加载，本示例需要加载model_data 中的classifier
 input_fn：解序列化输入数据用于传入模型，本示例在推理之前针对输入数据中的离散数据转换类型为category
 predict_fn：使用input_fn输出的数据作为数据放入加载的模型进行推理，然后返回推理结果
 output_fn：序列化模型推理的结果并返回，本示例为了返回结果能够与输入进行关联返回将返回数据用换行符换行，从而可以与输入数据对齐，如果无法对齐推理关联输入时会报错。
-
+```
 import sys
 import os
 os.system('pip install joblib pathlib lightgbm numpy==1.20.1 pandas==1.3.4')
@@ -376,9 +379,9 @@ def output_fn(response, response_content_type):
     response = "\n".join(response)
     print('response:' + str(response))
     return response
-
+```
 定义批量任务实现批量数据推理，下面我们需要指定用于推理的数据存储路径，推理结果的输出路径，推理所需的机器配置和数量，同时也可以指定推理最大并发数（_max_concurrent_transforms），最大的推理输入数据大小已M为单位（_max_payload）参数配置详情参见：https://docs.aws.amazon.com/sagemaker/latest/dg/your-algorithms-batch-code.html。同时针对转换任务的创建参数说明参见：https://sagemaker.readthedocs.io/en/stable/api/inference/model.html。
-
+```
 from sagemaker import get_execution_role
 from time import strftime, gmtime
 sagemaker_session = sagemaker.Session()
@@ -408,10 +411,10 @@ lightgbm_transformer = _model.transformer(
                             assemble_with='Line',
                             accept='text/csv')
 
-
+```
 批量推理所需的模型转换任务模版创建好后，就可以启动转换任务了，这里需要设置输入数据的存储位置，类型，分割方式，输入过滤器，关联的数据来源，输出过滤器等。本示例设置为使用原有输入数据不过滤，同时输出数据与输入数据关联，同时输出时只关联输入数据的第一列进行返回。
 transform方法的参数配置详见https://sagemaker.readthedocs.io/en/stable/api/inference/transformer.html
-
+```
 lightgbm_transformer.transform(
     data=prediction_data_path,
     content_type='text/csv',
@@ -422,12 +425,9 @@ lightgbm_transformer.transform(
     job_name=_job_name
 )
 lightgbm_transformer.wait()
-
+```
 备注：如上代码块均包含在lightgbm-sagemaker.ipynb (https://github.com/VerRan/sagemaker-lightgbm/blob/main/lightgbm-sagemaker.ipynb)，该文件可以通过sagemaker notebook实例或者sagemaker studio进行运行。
-代码运行后，会在sagemaker 控制台推理→批量转换任务菜单对应页面中看到任务的执行情况，同时可以在该界面进行任务监控和执行日志查看。
-[Image: image.png]任务执行成功后可以通过如上界面设置页面看到输出结果的存放目录，点击就可以进入S3查看推理结果，设置页的配置信息与如上代码设置的信息是一致的，下图为推理结果输出位置配置信息：
-[Image: image.png]通过S3查看推理结果，为了方便查看可以使用S3的select功能直接查看推理结果，显示如下：
-[Image: image.png]
+代码运行后，会在sagemaker 控制台推理→批量转换任务菜单对应页面中看到任务的执行情况，同时可以在Sagemaker控制台行任务监控和执行日志查看。
 
 ## 总结
 
@@ -436,13 +436,15 @@ lightgbm_transformer.wait()
 # 代码使用方法
 ## lightgbm 算法代码测试
 先本地测试代码逻辑
+```
 python test.py
-
+```
 ## lightgbm sagemaker 集成入口类改造与测试
 主要关注参数的设置与传递，改造后可以通过Sagemaker 超参数设置进行传递，模型输出路径等
 下面是本地测试改造后的代码
+```
 python entry_point.py --tree_num_leaves 30 --num_round 30 --model_dir '/home/sagemaker-user/yeahmobi-bj-lightgbm'
-
+```
 ## lightgbm集成到Sagemaker
 集成到sagemaker进行训练和推理
 参见action-lightgbm.ipynb
