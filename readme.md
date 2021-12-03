@@ -437,7 +437,7 @@ lightgbm_transformer.wait()
 ## lightgbm 算法代码测试
 先本地测试代码逻辑
 ```
-python test.py
+python train.py
 ```
 ## lightgbm sagemaker 集成入口类改造与测试
 主要关注参数的设置与传递，改造后可以通过Sagemaker 超参数设置进行传递，模型输出路径等
